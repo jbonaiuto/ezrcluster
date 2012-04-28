@@ -1,0 +1,9 @@
+[ssh]
+user=jbonaiuto
+data_server=tarsier.broadmonk.caltech.edu
+log_dir=/data/projects/ezrcluster/logs
+output_dir=/data/projects/ezrcluster/output
+
+[mq]
+host=tarsier.broadmonk.caltech.edu
+job_queue=ezrcluster_jobs
