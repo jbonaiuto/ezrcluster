@@ -51,7 +51,7 @@ def run_job(ch, method, properties, body):
 
     #copy logfile to data
     (rootdir, log_filename) = os.path.split(j.log_file)
-    dataserver=config.get('ssh', 'dataserver')
+    dataserver=config.get('ssh', 'data_server')
     dest_dir=config.get('ssh','log_dir')
     dest_file=os.path.join(dest_dir,log_filename)
     dest_str = '%s@%s:%s' % (config.get('ssh', 'user'), dataserver, dest_file)
