@@ -1,8 +1,8 @@
 [ssh]
 user=jbonaiuto
-data_server=tarsier.broadmonk.caltech.edu
-log_dir=/data/projects/ezrcluster/logs
-output_dir=/data/projects/ezrcluster/output
+data_server=mri-nas1
+log_dir=d://data/ezrcluster/logs
+output_dir=d://data/ezrcluster/output
 
 [mq]
 host=tarsier.broadmonk.caltech.edu
