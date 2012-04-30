@@ -56,7 +56,7 @@ def run_job(ch, method, properties, body):
     dest_file=os.path.join(dest_dir,log_filename)
 
     remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.log_file)
-    cmds = [remote_cmd_str, '|', 'sftp','-b','-','%s@%s' % (config.get('ssh','user'), config.get('ssh', 'data_server'))]
+    cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
     subprocess.call(cmds, shell=False)
     logger.debug('Copied log file from %s to sftp://%s/%s' % (j.log_file, dataserver, dest_file))
 
@@ -70,7 +70,7 @@ def run_job(ch, method, properties, body):
         dest_file=os.path.join(dest_dir,output_filename)
 
         remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.output_file)
-        cmds = [remote_cmd_str, '|', 'sftp','-b','-','%s@%s' % (config.get('ssh','user'), config.get('ssh', 'data_server'))]
+        cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
         subprocess.call(cmds, shell=False)
         logger.debug('Copied output file from %s to sftp://%s/%s' % (j.output_file, dataserver, dest_file))
 
