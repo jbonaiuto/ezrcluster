@@ -54,10 +54,11 @@ def run_job(ch, method, properties, body):
     dataserver=config.get('ssh', 'data_server')
     dest_dir=config.get('ssh','log_dir')
     dest_file=os.path.join(dest_dir,log_filename)
-    dest_str = '%s@%s:%s' % (config.get('ssh', 'user'), dataserver, dest_file)
-    cmds = ['scp', log_file, dest_str]
+
+    remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.log_file)
+    cmds = [remote_cmd_str, '|', 'sftp','-b','-','%s@%s' % (config.get('ssh','user'), config.get('ssh', 'data_server'))]
     subprocess.call(cmds, shell=False)
-    logger.debug('Copied log file from %s to ssh://%s/%s' % (j.log_file, dataserver, dest_file))
+    logger.debug('Copied log file from %s to sftp://%s/%s' % (j.log_file, dataserver, dest_file))
 
     # remove log file from local machine
     os.remove(j.log_file)
@@ -67,10 +68,11 @@ def run_job(ch, method, properties, body):
         (rootdir, output_filename) = os.path.split(j.output_file)
         dest_dir=config.get('ssh','output_dir')
         dest_file=os.path.join(dest_dir,output_filename)
-        dest_str = '%s@%s:%s' % (config.get('ssh', 'user'), dataserver, dest_file)
-        cmds = ['scp', j.output_file, dest_str]
+
+        remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.output_file)
+        cmds = [remote_cmd_str, '|', 'sftp','-b','-','%s@%s' % (config.get('ssh','user'), config.get('ssh', 'data_server'))]
         subprocess.call(cmds, shell=False)
-        logger.debug('Copied output file from %s to ssh://%s/%s' % (j.output_file, dataserver, dest_file))
+        logger.debug('Copied output file from %s to sftp://%s/%s' % (j.output_file, dataserver, dest_file))
 
         # remove output file from local machine
         os.remove(j.output_file)
