@@ -45,7 +45,7 @@ def run_job(ch, method, properties, body):
     j.log_file = log_file
     logger.debug('Job log file: %s' % j.log_file)
 
-    subprocess.call(j.cmds, shell=False)
+    subprocess.call(j.cmds, shell=False, stdout=fd, stderr=fd)
     logger.debug('Job command: %s' % ' '.join(j.cmds))
     logger.debug('Process finished')
 
