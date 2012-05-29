@@ -91,14 +91,14 @@ class Launcher():
             3) Initialize each instance by copying over some files and running a script (see initialize_instance)
         """
 
-        instances_pending = copy(self.instances)
+        instances_pending = zip(range(len(self.instances)),copy(self.instances))
         print 'Starting %d instances...' % len(self.instances)
         start_time = time.time()
         timed_out = False
         while len(instances_pending) > 0 and not timed_out:
-            for k,inst in enumerate(instances_pending):
+            for k,(inst_id,inst) in enumerate(instances_pending):
                 if self.is_ssh_running(inst):
-                    self.initialize_instance(inst)
+                    self.initialize_instance(inst, inst_id)
                     del instances_pending[k]
                     break
             time.sleep(5.0)
@@ -117,7 +117,7 @@ class Launcher():
         self.scp(instance, tfile.name, dest_file)
         os.remove(tfile.name)
 
-    def initialize_instance(self, instance):
+    def initialize_instance(self, instance, instance_id):
         """ Initialize a started instance. T
 
             The instance is assumed to have python
@@ -132,16 +132,18 @@ class Launcher():
 
         print 'Initializing instance: %s' % instance
 
-        self.scmd(instance, 'rm -R /tmp/ezrcluster*')
-        self.scmd(instance, 'rm -R /tmp/start-daemon.sh')
+        self.scmd(instance, 'rm /tmp/ezrcluster-daemon.%d.log' % instance_id)
+        self.scmd(instance, 'rm /tmp/ezrcluster-daemon-startup.%d.log' % instance_id)
+        self.scmd(instance, 'rm /tmp/start-daemon.%d.sh' % instance_id)
         send_self_tgz_to_instance(instance)
 
-        params = {'USER': config.get('ssh','user')}
+        params = {'USER': config.get('ssh','user'), 'HOST': config.get('ssh','host'),
+                  'INSTANCE_ID': '%d' % instance_id}
 
         self.fill_template_and_scp(instance, params,
             os.path.join(SH_DIR, 'start-daemon.sh'),
-            '/tmp/start-daemon.sh')
-        self.scmd(instance, 'chmod 777 /tmp/start-daemon.sh')
+            '/tmp/start-daemon.%d.sh' % instance_id)
+        self.scmd(instance, 'chmod 777 /tmp/start-daemon.%d.sh' % instance_id)
 
         if self.application_script_file is not None:
             self.fill_template_and_scp(instance, params,
@@ -149,7 +151,7 @@ class Launcher():
                 '/tmp/application-script.sh')
             self.scmd(instance, 'chmod 777 /tmp/application-script.sh')
 
-        self.scmd(instance, '/tmp/start-daemon.sh', remote_output_file='/tmp/ezrcluster-daemon-startup.log')
+        self.scmd(instance, '/tmp/start-daemon.%d.sh' % instance_id, remote_output_file='/tmp/ezrcluster-daemon-startup.%s.log' % instance_id)
 
     def launch(self):
         self.post_jobs()

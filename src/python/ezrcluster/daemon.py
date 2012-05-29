@@ -1,3 +1,4 @@
+import argparse
 import logging
 import pika
 import time
@@ -6,29 +7,6 @@ from ezrcluster.core import *
 
 logger = logging.getLogger('daemon')
 logger.setLevel(logging.DEBUG)
-
-
-# The daemon runs on a working instance. It collects jobs from the message queue and runs them.
-
-output_dir = '/tmp'
-log_file = os.path.join(output_dir, 'ezrcluster-daemon.log')
-lh = logging.FileHandler(log_file, mode='w')
-logger.addHandler(lh)
-
-logger.debug('Initializing daemon...')
-
-#connect to MQ
-conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq','host')))
-channel = conn.channel()
-
-channel.queue_declare(queue=config.get('mq','job_queue'), durable=True)
-
-logger.info('Daemon initialized and started')
-logger.info('SQS job queue name: %s' % config.get('mq','job_queue'))
-
-
-logger.debug('Starting daemon...')
-start_time = time.time()
 
 def run_job(ch, method, properties, body):
     """ Run an individual job from the SQS queue. """
@@ -79,7 +57,36 @@ def run_job(ch, method, properties, body):
 
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
-channel.basic_qos(prefetch_count=1)
-channel.basic_consume(run_job, queue=config.get('mq','job_queue'))
-channel.start_consuming()
+if __name__=='__main__':
+    ap = argparse.ArgumentParser(description='Run the daemon')
+    ap.add_argument('--instance_id', type=str, default='0', help='Instance ID')
+
+    argvals = ap.parse_args()
+
+    # The daemon runs on a working instance. It collects jobs from the message queue and runs them.
+    output_dir = '/tmp'
+    log_file = os.path.join(output_dir, 'ezrcluster-daemon.%s.log' % argvals.instance_id)
+    lh = logging.FileHandler(log_file, mode='w')
+    logger.addHandler(lh)
+
+    logger.debug('Initializing daemon...')
+
+    #connect to MQ
+    conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq','host')))
+    channel = conn.channel()
+
+    channel.queue_declare(queue=config.get('mq','job_queue'), durable=True)
+
+    logger.info('Daemon initialized and started')
+    logger.info('SQS job queue name: %s' % config.get('mq','job_queue'))
+
+    logger.debug('Starting daemon...')
+    start_time = time.time()
+
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(run_job, queue=config.get('mq','job_queue'))
+    channel.start_consuming()
+
+
+
 
