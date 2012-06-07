@@ -2,11 +2,13 @@ import hashlib
 import simplejson as json
 import pika
 import time
-from ezrcluster.config import SH_DIR
+from ezrcluster.config import SH_DIR, INSTANCES
 from ezrcluster.core import *
 
 class Launcher():
-    def __init__(self, instances):
+    def __init__(self, instances=None):
+        if instances is None:
+            instances=INSTANCES
         self.conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq', 'host')))
         self.channel = self.conn.channel()
         self.channel.queue_declare(queue=config.get('mq','job_queue'), durable=True)
@@ -152,6 +154,14 @@ class Launcher():
             self.scmd(instance, 'chmod 777 /tmp/application-script.sh')
 
         self.scmd(instance, '/tmp/start-daemon.%d.sh' % instance_id, remote_output_file='/tmp/ezrcluster-daemon-startup.%s.log' % instance_id)
+
+    def num_instances_running(self, host):
+        host_str = '%s@%s' % (config.get('ssh', 'user'), host)
+        cstr = 'ps -ewwo pid,args | grep "[p]ython /tmp/ezrcluster" | wc -l'
+        cmds = ['ssh', host_str, cstr]
+        p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        return int(out)>0
 
     def launch(self):
         self.post_jobs()

@@ -19,3 +19,5 @@ if not os.path.exists(CONF_FILE):
 
 config = ConfigParser()
 config.read(CONF_FILE)
+
+INSTANCES=config.get('nodes','names').split(',')

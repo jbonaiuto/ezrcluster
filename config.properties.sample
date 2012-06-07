@@ -8,3 +8,6 @@ output_dir=/D:/data/ezrcluster/output
 [mq]
 host=tarsier.broadmonk.caltech.edu
 job_queue=ezrcluster_jobs
+
+[nodes]
+names=tarsier,tarsier,old47,mri-eyetracker,mri-eyetracker,mri-controller,bigfoot,bushbaby,bushbaby,howler,orangutan,orangutan,vervet,vervet
