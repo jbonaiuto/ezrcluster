@@ -161,7 +161,7 @@ class Launcher():
         cmds = ['ssh', host_str, cstr]
         p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
         out, err = p.communicate()
-        return int(out)>0
+        return int(out)
 
     def launch(self):
         self.post_jobs()
