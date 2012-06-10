@@ -157,7 +157,15 @@ class Launcher():
 
     def num_instances_running(self, host):
         host_str = '%s@%s' % (config.get('ssh', 'user'), host)
-        cstr = 'ps -ewwo pid,args | grep "[p]ython /tmp/ezrcluster" | wc -l'
+        cstr = 'pgrep -f "python /tmp/ezrcluster" | wc -l'
+        cmds = ['ssh', host_str, cstr]
+        p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
+        out, err = p.communicate()
+        return int(out)
+
+    def kill_instances(self, host):
+        host_str = '%s@%s' % (config.get('ssh', 'user'), host)
+        cstr = 'pkill -f "python /tmp/ezrcluster"'
         cmds = ['ssh', host_str, cstr]
         p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
         out, err = p.communicate()
