@@ -168,8 +168,6 @@ class Launcher():
         cstr = 'pkill -f "python /tmp/ezrcluster"'
         cmds = ['ssh', host_str, cstr]
         p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
-        out, err = p.communicate()
-        return int(out)
 
     def launch(self):
         self.post_jobs()
