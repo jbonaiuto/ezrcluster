@@ -1,7 +1,7 @@
 import argparse
 import logging
+import socket
 import pika
-import time
 import simplejson as json
 from ezrcluster.core import *
 
@@ -57,6 +57,46 @@ def run_job(ch, method, properties, body):
 
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
+class Daemon:
+    def __init__(self, output_dir, instance_id):
+        logger.debug('Initializing daemon...')
+        log_file = os.path.join(output_dir, 'ezrcluster-daemon.%s.log' % argvals.instance_id)
+        lh = logging.FileHandler(log_file, mode='w')
+        logger.addHandler(lh)
+
+    def init_connection(self):
+        #connect to MQ
+        self.conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq', 'host')))
+        self.channel = self.conn.channel()
+        self.channel.queue_declare(queue=config.get('mq', 'job_queue'), durable=True)
+
+    def start_daemon(self):
+        self.init_connection()
+
+        logger.info('Daemon initialized and started')
+        logger.info('SQS job queue name: %s' % config.get('mq','job_queue'))
+
+        logger.debug('Starting daemon...')
+
+        while True:
+            try:
+                self.channel.basic_qos(prefetch_count=1)
+                self.channel.basic_consume(run_job, queue=config.get('mq','job_queue'))
+                self.channel.wait()
+                self.channel.start_consuming()
+            except SystemExit:
+                self.channel.stop_consuming()
+                break
+            except pika.exceptions.AMQPConnectionError:
+                logger.error('Server went away, reconnecting..')
+                self.init_connection()
+            except socket.error:
+                logger.error('Server went away, reconnecting..')
+                self.init_connection()
+            except Exception, e:
+                logger.exception("Caught unexpected exception")
+                self.init_connection()
+
 if __name__=='__main__':
     ap = argparse.ArgumentParser(description='Run the daemon')
     ap.add_argument('--instance_id', type=str, default='0', help='Instance ID')
@@ -65,28 +105,9 @@ if __name__=='__main__':
 
     # The daemon runs on a working instance. It collects jobs from the message queue and runs them.
     output_dir = '/tmp'
-    log_file = os.path.join(output_dir, 'ezrcluster-daemon.%s.log' % argvals.instance_id)
-    lh = logging.FileHandler(log_file, mode='w')
-    logger.addHandler(lh)
 
-    logger.debug('Initializing daemon...')
-
-    #connect to MQ
-    conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq','host')))
-    channel = conn.channel()
-
-    channel.queue_declare(queue=config.get('mq','job_queue'), durable=True)
-
-    logger.info('Daemon initialized and started')
-    logger.info('SQS job queue name: %s' % config.get('mq','job_queue'))
-
-    logger.debug('Starting daemon...')
-    start_time = time.time()
-
-    channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(run_job, queue=config.get('mq','job_queue'))
-    channel.start_consuming()
-
+    daemon=Daemon(output_dir, argvals.instance_id)
+    daemon.start_daemon()
 
 
 
