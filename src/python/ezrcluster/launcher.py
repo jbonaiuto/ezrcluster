@@ -172,7 +172,7 @@ class Launcher():
 
     def kill_instances(self, host):
         host_str = '%s@%s' % (config.get('ssh', 'user'), host)
-        cstr = '''pkill -f "python /tmp/ezrcluster"'''
+        cstr = '\'pkill -f "python /tmp/ezrcluster"\''
         cmds = ['ssh', host_str, cstr]
         p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
 
