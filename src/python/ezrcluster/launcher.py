@@ -163,9 +163,16 @@ class Launcher():
         out, err = p.communicate()
         return int(out)
 
+    def kill_all_instances(self):
+        killed=[]
+        for instance in self.instances:
+            if not instance in killed:
+                self.kill_instances(instance)
+                killed.append(instance)
+
     def kill_instances(self, host):
         host_str = '%s@%s' % (config.get('ssh', 'user'), host)
-        cstr = 'pkill -f "python /tmp/ezrcluster"'
+        cstr = '''pkill -f "python /tmp/ezrcluster"'''
         cmds = ['ssh', host_str, cstr]
         p = subprocess.Popen(cmds, stdout=subprocess.PIPE)
 
