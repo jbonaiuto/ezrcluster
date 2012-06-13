@@ -82,7 +82,6 @@ class Daemon:
             try:
                 self.channel.basic_qos(prefetch_count=1)
                 self.channel.basic_consume(run_job, queue=config.get('mq','job_queue'))
-                self.channel.wait()
                 self.channel.start_consuming()
             except SystemExit:
                 self.channel.stop_consuming()
@@ -93,7 +92,7 @@ class Daemon:
             except socket.error:
                 logger.error('Server went away, reconnecting..')
                 self.init_connection()
-            except Exception, e:
+            except Exception:
                 logger.exception("Caught unexpected exception")
                 self.init_connection()
 
