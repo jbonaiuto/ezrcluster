@@ -2,34 +2,34 @@ import hashlib
 import simplejson as json
 import pika
 import time
-from ezrcluster.config import SH_DIR, INSTANCES
+from ezrcluster.config import SH_DIR, NODES
 from ezrcluster.core import *
 
 class Launcher():
-    def __init__(self, instances=None):
-        if instances is None:
-            instances=INSTANCES
+    def __init__(self, nodes=None):
+        if nodes is None:
+            nodes=NODES
         self.conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq', 'host')))
         self.channel = self.conn.channel()
         self.channel.queue_declare(queue=config.get('mq','job_queue'), durable=True)
 
-        self.instances=instances
+        self.nodes=nodes
         self.jobs = []
         self.application_script_file = None
 
-    def is_ssh_running(self, instance):
-        host_str = '%s@%s' % (config.get('ssh', 'user'), instance)
+    def is_ssh_running(self, host):
+        host_str = '%s@%s' % (config.get('ssh', 'user'), host)
         ret_code = subprocess.call(['ssh', '-o', 'ConnectTimeout=15',
                                     host_str, 'exit'], shell=False)
         return ret_code == 0
 
-    def scp(self, instance, src_file, dest_file):
-        dest_str = '%s@%s:%s' % (config.get('ssh', 'user'), instance, dest_file)
+    def scp(self, host, src_file, dest_file):
+        dest_str = '%s@%s:%s' % (config.get('ssh', 'user'), host, dest_file)
         cmds = ['scp', src_file, dest_str]
         subprocess.call(cmds, shell=False)
 
-    def scmd(self, instance, cmd, use_shell=False, remote_output_file='/dev/null'):
-        host_str = '%s@%s' % (config.get('ssh', 'user'), instance)
+    def scmd(self, host, cmd, use_shell=False, remote_output_file='/dev/null'):
+        host_str = '%s@%s' % (config.get('ssh', 'user'), host)
         cstr = '""nohup %s >> %s 2>> %s < /dev/null &""' %\
                (cmd, remote_output_file, remote_output_file)
         cmds = ['ssh', host_str, cstr]
@@ -84,7 +84,7 @@ class Launcher():
     def set_application_script(self, file_name):
         self.application_script_file = file_name
 
-    def start_instances(self, timeout_after=1800):
+    def start_nodes(self, timeout_after=1800):
         """ Starts the number of instances specified in the constructor.
 
             The steps it takes to do this are as follows:
@@ -93,36 +93,36 @@ class Launcher():
             3) Initialize each instance by copying over some files and running a script (see initialize_instance)
         """
 
-        instances_pending = zip(range(len(self.instances)),copy(self.instances))
-        print 'Starting %d instances...' % len(self.instances)
+        nodes_pending = copy(self.nodes)
+        print 'Starting %d nodes...' % len(self.nodes)
         start_time = time.time()
         timed_out = False
-        while len(instances_pending) > 0 and not timed_out:
-            for k,(inst_id,inst) in enumerate(instances_pending):
-                if self.is_ssh_running(inst):
-                    self.initialize_instance(inst, inst_id)
-                    del instances_pending[k]
+        while len(nodes_pending) > 0 and not timed_out:
+            for host,num_instances in nodes_pending.iteritems():
+                if self.is_ssh_running(host):
+                    self.initialize_node(host, num_instances=num_instances)
+                    del nodes_pending[host]
                     break
             time.sleep(5.0)
             timed_out = (time.time() - start_time) > timeout_after
 
         if timed_out:
-            print 'Timed out! Only %d instances were started...' %\
-                  (len(self.instances) - len(instances_pending))
+            print 'Timed out! Only %d nodes were started...' %\
+                  (len(self.nodes) - len(nodes_pending))
 
-    def fill_template_and_scp(self, instance, params, template_file, dest_file):
+    def fill_template_and_scp(self, host, params, template_file, dest_file):
         tpl = ScriptTemplate(template_file)
         str = tpl.fill(params)
         tfile = tempfile.NamedTemporaryFile('w', delete=False)
         tfile.write(str)
         tfile.close()
-        self.scp(instance, tfile.name, dest_file)
+        self.scp(host, tfile.name, dest_file)
         os.remove(tfile.name)
 
-    def initialize_instance(self, instance, instance_id):
-        """ Initialize a started instance. T
+    def initialize_node(self, host, num_instances=1):
+        """ Initialize a started node.
 
-            The instance is assumed to have python
+            The host is assumed to have python
             installed, as well as a running SSH daemon. All uploaded files are
             stored in /tmp. The following steps are taken:
 
@@ -132,28 +132,23 @@ class Launcher():
             4) Start the shell script.
         """
 
-        print 'Initializing instance: %s' % instance
+        print 'Initializing node: %s' % host
 
-        self.scmd(instance, 'rm /tmp/ezrcluster-daemon.%d.log' % instance_id)
-        self.scmd(instance, 'rm /tmp/ezrcluster-daemon-startup.%d.log' % instance_id)
-        self.scmd(instance, 'rm /tmp/start-daemon.%d.sh' % instance_id)
-        send_self_tgz_to_instance(instance)
+        self.scmd(host, 'rm /tmp/ezrcluster-daemon.*.log')
+        self.scmd(host, 'rm /tmp/ezrcluster-host-startup.log')
+        self.scmd(host, 'rm /tmp/start-daemon.sh')
+        send_self_tgz_to_instance(host)
 
-        params = {'USER': config.get('ssh','user'), 'HOST': config.get('ssh','host'),
-                  'INSTANCE_ID': '%d' % instance_id}
+        params = {'USER': config.get('ssh','user'), 'HOST': config.get('ssh','host'), 'NUM_INSTANCES': num_instances}
 
-        self.fill_template_and_scp(instance, params,
-            os.path.join(SH_DIR, 'start-daemon.sh'),
-            '/tmp/start-daemon.%d.sh' % instance_id)
-        self.scmd(instance, 'chmod 777 /tmp/start-daemon.%d.sh' % instance_id)
+        self.fill_template_and_scp(host, params, os.path.join(SH_DIR, 'start-daemon.sh'), '/tmp/start-daemon.sh')
+        self.scmd(host, 'chmod 777 /tmp/start-daemon.sh')
 
         if self.application_script_file is not None:
-            self.fill_template_and_scp(instance, params,
-                self.application_script_file,
-                '/tmp/application-script.sh')
-            self.scmd(instance, 'chmod 777 /tmp/application-script.sh')
+            self.fill_template_and_scp(host, params, self.application_script_file, '/tmp/application-script.sh')
+            self.scmd(host, 'chmod 777 /tmp/application-script.sh')
 
-        self.scmd(instance, '/tmp/start-daemon.%d.sh' % instance_id, remote_output_file='/tmp/ezrcluster-daemon-startup.%s.log' % instance_id)
+        self.scmd(host, '/tmp/start-daemon.sh', remote_output_file='/tmp/ezrcluster-host-startup.log')
 
     def num_instances_running(self, host):
         host_str = '%s@%s' % (config.get('ssh', 'user'), host)
@@ -163,14 +158,14 @@ class Launcher():
         out, err = p.communicate()
         return int(out)
 
-    def kill_all_instances(self):
+    def kill_all_nodes(self):
         killed=[]
-        for instance in self.instances:
-            if not instance in killed:
-                self.kill_instances(instance)
-                killed.append(instance)
+        for host in self.nodes.iterkeys():
+            if not host in killed:
+                self.kill_node(host)
+                killed.append(host)
 
-    def kill_instances(self, host):
+    def kill_node(self, host):
         host_str = '%s@%s' % (config.get('ssh', 'user'), host)
         cstr = '\'pkill -f "python /tmp/ezrcluster"\''
         cmds = ['ssh', host_str, cstr]
@@ -178,6 +173,6 @@ class Launcher():
 
     def launch(self):
         self.post_jobs()
-        self.start_instances()
+        self.start_nodes()
         self.close()
 

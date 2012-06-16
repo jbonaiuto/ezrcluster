@@ -10,4 +10,4 @@ host=tarsier.broadmonk.caltech.edu
 job_queue=ezrcluster_jobs
 
 [nodes]
-names=tarsier,tarsier,old47,mri-eyetracker,mri-eyetracker,mri-controller,bigfoot,bushbaby,bushbaby,howler,orangutan,orangutan,vervet,vervet
+names=tarsier:2,old47:1,mri-eyetracker:2,mri-controller:1,bigfoot:1,bushbaby:2,howler:1,orangutan:2,vervet:2

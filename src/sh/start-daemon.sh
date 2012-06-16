@@ -21,5 +21,5 @@ echo "PYTHONPATH=$PYTHONPATH"
 
 #run ezrcluster Daemon
 echo "Starting daemon..."
-python /tmp/ezrcluster/src/python/ezrcluster/daemon.py --instance_id #INSTANCE_ID# &
+python /tmp/ezrcluster/src/python/ezrcluster/daemon.py --num_instances #NUM_INSTANCES# &
 echo "Daemon started... all done!"
