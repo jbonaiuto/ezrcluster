@@ -9,6 +9,7 @@ from ezrcluster.core import *
 class Daemon(Thread):
     def __init__(self, output_dir, instance_id):
         Thread.__init__(self)
+        self.broken=False
         self.logger = logging.getLogger('daemon')
         self.logger.setLevel(logging.DEBUG)
 
@@ -32,7 +33,7 @@ class Daemon(Thread):
 
         self.logger.debug('Starting daemon...')
 
-        while True:
+        while not self.broken:
             try:
                 self.channel.basic_qos(prefetch_count=1)
                 self.channel.basic_consume(self.run_job, queue=config.get('mq','job_queue'))
@@ -49,6 +50,8 @@ class Daemon(Thread):
             except Exception:
                 self.logger.exception("Caught unexpected exception")
                 self.init_connection()
+        if self.broken:
+            self.channel.stop_consuming()
 
     def run_job(self, ch, method, properties, body):
         """ Run an individual job from the SQS queue. """
@@ -69,35 +72,38 @@ class Daemon(Thread):
         self.logger.debug('Job command: %s' % ' '.join(j.cmds))
         self.logger.debug('Process finished')
 
-        #copy logfile to data
-        (rootdir, log_filename) = os.path.split(j.log_file)
-        dataserver=config.get('ssh', 'data_server')
-        dest_dir=config.get('ssh','log_dir')
-        dest_file=os.path.join(dest_dir,log_filename)
+        if os.path.exists(j.output_file):
+            #copy logfile to data
+            (rootdir, log_filename) = os.path.split(j.log_file)
+            dataserver=config.get('ssh', 'data_server')
+            dest_dir=config.get('ssh','log_dir')
+            dest_file=os.path.join(dest_dir,log_filename)
 
-        remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.log_file)
-        cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
-        subprocess.call(cmds, shell=True)
-        self.logger.debug('Copied log file from %s to sftp://%s/%s' % (j.log_file, dataserver, dest_file))
-
-        # remove log file from local machine
-        os.remove(j.log_file)
-
-        # copy output file to data
-        if j.output_file:
-            (rootdir, output_filename) = os.path.split(j.output_file)
-            dest_dir=config.get('ssh','output_dir')
-            dest_file=os.path.join(dest_dir,output_filename)
-
-            remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.output_file)
+            remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.log_file)
             cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
             subprocess.call(cmds, shell=True)
-            self.logger.debug('Copied output file from %s to sftp://%s/%s' % (j.output_file, dataserver, dest_file))
+            self.logger.debug('Copied log file from %s to sftp://%s/%s' % (j.log_file, dataserver, dest_file))
 
-            # remove output file from local machine
-            os.remove(j.output_file)
+            # remove log file from local machine
+            os.remove(j.log_file)
 
-        ch.basic_ack(delivery_tag = method.delivery_tag)
+            # copy output file to data
+            if j.output_file:
+                (rootdir, output_filename) = os.path.split(j.output_file)
+                dest_dir=config.get('ssh','output_dir')
+                dest_file=os.path.join(dest_dir,output_filename)
+
+                remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.output_file)
+                cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
+                subprocess.call(cmds, shell=True)
+                self.logger.debug('Copied output file from %s to sftp://%s/%s' % (j.output_file, dataserver, dest_file))
+
+                # remove output file from local machine
+                os.remove(j.output_file)
+
+            ch.basic_ack(delivery_tag = method.delivery_tag)
+        else:
+            self.broken=True
 
 if __name__=='__main__':
     ap = argparse.ArgumentParser(description='Run the daemon')
