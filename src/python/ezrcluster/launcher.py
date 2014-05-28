@@ -9,6 +9,7 @@ class Launcher():
     def __init__(self, nodes=None):
         if nodes is None:
             nodes=NODES
+        print('connecting to %s' % config.get('mq', 'host'))
         self.conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq', 'host')))
         self.channel = self.conn.channel()
         self.channel.queue_declare(queue=config.get('mq','job_queue'), durable=True)
