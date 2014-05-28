@@ -1,0 +1,4 @@
+ezrcluster
+==========
+
+Easy cluster management
