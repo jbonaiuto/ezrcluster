@@ -140,7 +140,8 @@ class Launcher():
         self.scmd(host, 'rm /tmp/start-daemon.sh')
         send_self_tgz_to_instance(host)
 
-        params = {'USER': config.get('ssh','user'), 'HOST': config.get('ssh','host'), 'NUM_INSTANCES': num_instances}
+        params = {'USER': config.get('ssh','user'), 'HOST': config.get('ssh','host'), 'PORT': config.get('ssh','port'),
+                  'NUM_INSTANCES': num_instances}
 
         self.fill_template_and_scp(host, params, os.path.join(SH_DIR, 'start-daemon.sh'), '/tmp/start-daemon.sh')
         self.scmd(host, 'chmod 777 /tmp/start-daemon.sh')
