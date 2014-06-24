@@ -76,13 +76,16 @@ class Daemon(Thread):
             #copy logfile to data
             (rootdir, log_filename) = os.path.split(j.log_file)
             dataserver=config.get('ssh', 'data_server')
+            port=config.get('ssh','port')
             dest_dir=config.get('ssh','log_dir')
+            user=config.get('ssh','user')
             dest_file=os.path.join(dest_dir,log_filename)
 
             remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.log_file)
-            cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
+            cmds = ['%s | sftp -p %s -b - %s@%s' % (port, remote_cmd_str, user, dataserver)]
             subprocess.call(cmds, shell=True)
-            self.logger.debug('Copied log file from %s to sftp://%s/%s' % (j.log_file, dataserver, dest_file))
+            self.logger.debug('Copied log file from %s to sftp://%s@%s:%s/%s' % (j.log_file, user, dataserver, port,
+                                                                                 dest_file))
 
             # remove log file from local machine
             os.remove(j.log_file)
@@ -94,9 +97,10 @@ class Daemon(Thread):
                 dest_file=os.path.join(dest_dir,output_filename)
 
                 remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, j.output_file)
-                cmds = ['%s | sftp -b - %s@%s' % (remote_cmd_str, config.get('ssh','user'), config.get('ssh', 'data_server'))]
+                cmds = ['%s | sftp -p %s -b - %s@%s' % (port, remote_cmd_str, user, dataserver)]
                 subprocess.call(cmds, shell=True)
-                self.logger.debug('Copied output file from %s to sftp://%s/%s' % (j.output_file, dataserver, dest_file))
+                self.logger.debug('Copied output file from %s to sftp://%s@%s:%s/%s' % (j.output_file, user, dataserver,
+                                                                                        port, dest_file))
 
                 # remove output file from local machine
                 os.remove(j.output_file)
