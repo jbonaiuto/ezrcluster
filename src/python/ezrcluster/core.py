@@ -36,6 +36,8 @@ class Job():
         self.expected_runtime = expected_runtime
         self.log_file_template = log_file_template
         self.output_file = output_file
+        self.process = None
+        self.method=None
 
     def to_dict(self):
         return {'type':'job',
@@ -45,6 +47,15 @@ class Job():
                 'expected_runtime':self.expected_runtime,
                 'log_file_template':self.log_file_template,
                 'output_file':self.output_file}
+
+    def run(self, output_dir):
+        log_file = os.path.join(output_dir, self.log_file_template)
+        print 'Opening log file: %s' % log_file
+        fd = open(log_file, 'w')
+        self.fd = fd
+        self.log_file = log_file
+        self.process=subprocess.Popen(self.cmds, shell=False, stdout=fd, stderr=fd)
+
 
 def job_from_dict(ji):
     id = ji['id']
