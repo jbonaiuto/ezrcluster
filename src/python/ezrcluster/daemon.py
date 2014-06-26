@@ -26,6 +26,19 @@ class Daemon(Thread):
         self.conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq', 'host'), socket_timeout=1200))
         self.channel = self.conn.channel()
         self.channel.queue_declare(queue=config.get('mq', 'job_queue'), durable=True)
+        self.channel.basic_qos(prefetch_count=1)
+
+    def poll_for_job(self):
+        for (method, properties, body) in self.channel.consume(config.get('mq', 'job_queue')):
+            self.run_job(method, properties, body)
+            break
+        self.channel.basic_cancel(self.channel._generator)
+        if self.channel._generator_messages:
+            # Get the last item
+            (method, properties, body) = self.channel._generator_messages.pop()
+            messages = len(self.channel._generator_messages)
+            self.channel.basic_nack(method.delivery_tag, multiple=True, requeue=True)
+        self.channel._generator = None
 
     def run(self):
         self.init_connection()
@@ -37,26 +50,11 @@ class Daemon(Thread):
 
         while not self.broken:
             try:
-                self.channel.basic_qos(prefetch_count=1)
-                #self.channel.basic_consume(self.run_job, queue=config.get('mq','job_queue'))
                 if self.job is None:
-                    for (method, properties, body) in self.channel.consume(config.get('mq','job_queue')):
-                        self.run_job(method, properties, body)
-                        break
-                    self.channel.basic_cancel(self.channel._generator)
-                    if self.channel._generator_messages:
-                        # Get the last item
-                        (method, properties, body) = self.channel._generator_messages.pop()
-                        messages = len(self.channel._generator_messages)
-                        self.channel.basic_nack(method.delivery_tag, multiple=True, requeue=True)
-                        self.channel.connection.process_data_events()
-                    self.channel._generator = None
+                    self.poll_for_job()
                 else:
-                    if self.job.process is not None:
-                        self.job.process.poll()
-                        if self.job.process.returncode is not None:
-                            self.job_finished()
-                    self.channel.connection.process_data_events()
+                    self.monitor_job()
+                self.channel.connection.process_data_events()
             except SystemExit:
                 self.channel.stop_consuming()
                 break
@@ -89,8 +87,13 @@ class Daemon(Thread):
         self.logger.debug('Job log file: %s' % self.job.log_file)
         self.logger.debug('Job command: %s' % ' '.join(self.job.cmds))
 
+    def monitor_job(self):
+        if self.job.process is not None:
+            self.job.process.poll()
+            if self.job.process.returncode is not None:
+                self.finalize_job()
 
-    def job_finished(self):
+    def finalize_job(self):
         self.logger.debug('Process finished')
 
         if os.path.exists(self.job.output_file):
