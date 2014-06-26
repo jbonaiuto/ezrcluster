@@ -103,7 +103,7 @@ class Daemon(Thread):
             dest_file=os.path.join(dest_dir,log_filename)
 
             remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.log_file)
-            cmds = ['%s | sftp -p %s -b - %s@%s' % (port, remote_cmd_str, user, dataserver)]
+            cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
             subprocess.call(cmds, shell=True)
             self.logger.debug('Copied log file from %s to sftp://%s@%s:%s/%s' % (self.job.log_file, user, dataserver, port,
                                                                                  dest_file))
@@ -118,7 +118,7 @@ class Daemon(Thread):
                 dest_file=os.path.join(dest_dir,output_filename)
 
                 remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.output_file)
-                cmds = ['%s | sftp -p %s -b - %s@%s' % (port, remote_cmd_str, user, dataserver)]
+                cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
                 subprocess.call(cmds, shell=True)
                 self.logger.debug('Copied output file from %s to sftp://%s@%s:%s/%s' % (self.job.output_file, user, dataserver,
                                                                                         port, dest_file))
