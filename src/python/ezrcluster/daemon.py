@@ -128,9 +128,12 @@ class Daemon(Thread):
 
                 # remove output file from local machine
                 os.remove(self.job.output_file)
+            else:
+                self.logger.debug('** Job had no output file set: %s' % self.job.log_file)
 
             self.channel.basic_ack(delivery_tag = self.job.method.delivery_tag)
         else:
+            self.logger.debug('** Output file not found: %s' % self.job.output_file)
             self.broken=True
         self.job=None
 
