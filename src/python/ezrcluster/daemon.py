@@ -7,17 +7,17 @@ import simplejson as json
 import time
 from ezrcluster.core import *
 
-class Daemon(Thread):
-    def __init__(self, output_dir, instance_id):
+class Daemon():
+    def __init__(self, output_dir, num_jobs):
         Thread.__init__(self)
-        self.job=None
+        self.jobs=[]
         self.broken=False
         self.logger = logging.getLogger('daemon')
         self.logger.setLevel(logging.DEBUG)
 
         self.logger.debug('Initializing daemon...')
-        self.instance_id=instance_id
-        log_file = os.path.join(output_dir, 'ezrcluster-daemon.%s.log' % self.instance_id)
+        self.num_jobs=num_jobs
+        log_file = os.path.join(output_dir, 'ezrcluster-daemon.log')
         lh = logging.FileHandler(log_file, mode='w')
         self.logger.addHandler(lh)
 
@@ -28,10 +28,11 @@ class Daemon(Thread):
         self.channel.queue_declare(queue=config.get('mq', 'job_queue'), durable=True)
         self.channel.basic_qos(prefetch_count=1)
 
-    def poll_for_job(self):
+    def poll_for_jobs(self):
         for (method, properties, body) in self.channel.consume(config.get('mq', 'job_queue')):
             self.run_job(method, properties, body)
-            break
+            if len(self.jobs)>=self.num_jobs:
+                break
         self.channel.basic_cancel(self.channel._generator)
         if self.channel._generator_messages:
             # Get the last item
@@ -44,16 +45,15 @@ class Daemon(Thread):
         self.init_connection()
 
         self.logger.info('Daemon initialized and started')
-        self.logger.info('SQS job queue name: %s' % config.get('mq','job_queue'))
+        self.logger.info('Job queue name: %s' % config.get('mq','job_queue'))
 
         self.logger.debug('Starting daemon...')
 
         while not self.broken:
             try:
-                if self.job is None:
-                    self.poll_for_job()
-                else:
-                    self.monitor_job()
+                if len(self.jobs)<self.num_jobs:
+                    self.poll_for_jobs()
+                self.monitor_jobs()
                 self.channel.connection.process_data_events()
             except SystemExit:
                 self.channel.stop_consuming()
@@ -78,64 +78,79 @@ class Daemon(Thread):
         """ Run an individual job from the SQS queue. """
 
         job_info = json.loads(body)
-        self.job = job_from_dict(job_info)
-        self.job.batch_id = job_info['batch_id']
-        self.logger.debug('Starting job from batch %s with id %s' % (self.job.batch_id, self.job.id))
-        self.job.method=method
-        self.job.run(output_dir)
+        job = job_from_dict(job_info)
+        job.batch_id = job_info['batch_id']
+        self.logger.debug('Starting job from batch %s with id %s' % (job.batch_id, job.id))
+        job.method=method
+        job.run(output_dir)
 
-        self.logger.debug('Job log file: %s' % self.job.log_file)
-        self.logger.debug('Job command: %s' % ' '.join(self.job.cmds))
+        self.logger.debug('Job log file: %s' % job.log_file)
+        self.logger.debug('Job command: %s' % ' '.join(job.cmds))
+        self.jobs.append(job)
 
-    def monitor_job(self):
-        if self.job.process is not None:
-            self.job.process.poll()
-            if self.job.process.returncode is not None:
-                self.finalize_job()
+    def monitor_jobs(self):
+        for job in self.jobs:
+            if job.process is not None:
+                job.process.poll()
+                if job.process.returncode is not None:
+                    self.logger.debug('Process finished')
 
-    def finalize_job(self):
-        self.logger.debug('Process finished')
+                    if os.path.exists(job.output_file):
+                        #copy logfile to data
+                        (rootdir, log_filename) = os.path.split(job.log_file)
+                        dataserver=config.get('ssh', 'data_server')
+                        port=config.get('ssh','port')
+                        dest_dir=config.get('ssh','log_dir')
+                        user=config.get('ssh','user')
+                        dest_file=os.path.join(dest_dir,log_filename)
 
-        if os.path.exists(self.job.output_file):
-            #copy logfile to data
-            (rootdir, log_filename) = os.path.split(self.job.log_file)
-            dataserver=config.get('ssh', 'data_server')
-            port=config.get('ssh','port')
-            dest_dir=config.get('ssh','log_dir')
-            user=config.get('ssh','user')
-            dest_file=os.path.join(dest_dir,log_filename)
+                        remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, job.log_file)
+                        cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
+                        ret_code=subprocess.call(cmds, shell=True)
+                        if ret_code != 0:
+                            if ret_code < 0:
+                                self.logger.debug('Log transfer of %s killed by signal %d' % (job.log_file,ret_code))
+                            else:
+                                self.logger.debug('Log transfer of %s failed with return code %d' % (job.log_file,
+                                                                                                     ret_code))
+                        else:
+                            self.logger.debug('Copied log file from %s to sftp://%s@%s:%s/%s' % (job.log_file, user,
+                                                                                                 dataserver, port,
+                                                                                                 dest_file))
 
-            remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.log_file)
-            cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
-            subprocess.call(cmds, shell=True)
-            self.logger.debug('Copied log file from %s to sftp://%s@%s:%s/%s' % (self.job.log_file, user, dataserver, port,
-                                                                                 dest_file))
+                        # remove log file from local machine
+                        os.remove(job.log_file)
 
-            # remove log file from local machine
-            os.remove(self.job.log_file)
+                        # copy output file to data
+                        if job.output_file:
+                            (rootdir, output_filename) = os.path.split(job.output_file)
+                            dest_dir=config.get('ssh','output_dir')
+                            dest_file=os.path.join(dest_dir,output_filename)
 
-            # copy output file to data
-            if self.job.output_file:
-                (rootdir, output_filename) = os.path.split(self.job.output_file)
-                dest_dir=config.get('ssh','output_dir')
-                dest_file=os.path.join(dest_dir,output_filename)
+                            remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, job.output_file)
+                            cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
+                            ret_code=subprocess.call(cmds, shell=True)
+                            if ret_code != 0:
+                                if ret_code < 0:
+                                    self.logger.debug('Output transfer of %s killed by signal %d' % (job.output_file,ret_code))
+                                else:
+                                    self.logger.debug('Output transfer of %s failed with return code %d' % (job.output_file,
+                                                                                                         ret_code))
+                            else:
+                                self.logger.debug('Copied output file from %s to sftp://%s@%s:%s/%s' % (job.output_file,
+                                                                                                        user, dataserver,
+                                                                                                        port, dest_file))
 
-                remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.output_file)
-                cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
-                subprocess.call(cmds, shell=True)
-                self.logger.debug('Copied output file from %s to sftp://%s@%s:%s/%s' % (self.job.output_file, user, dataserver,
-                                                                                        port, dest_file))
+                            # remove output file from local machine
+                            os.remove(job.output_file)
+                        else:
+                            self.logger.debug('** Job had no output file set: %s' % job.log_file)
 
-                # remove output file from local machine
-                os.remove(self.job.output_file)
-            else:
-                self.logger.debug('** Job had no output file set: %s' % self.job.log_file)
-
-            self.channel.basic_ack(delivery_tag = self.job.method.delivery_tag)
-        else:
-            self.logger.debug('** Output file not found: %s' % self.job.output_file)
-            self.broken=True
-        self.job=None
+                        self.channel.basic_ack(delivery_tag = job.method.delivery_tag)
+                    else:
+                        self.logger.debug('** Output file not found: %s' % job.output_file)
+                        self.broken=True
+                    self.jobs.remove(job)
 
 if __name__=='__main__':
     ap = argparse.ArgumentParser(description='Run the daemon')
@@ -146,9 +161,8 @@ if __name__=='__main__':
     # The daemon runs on a working instance. It collects jobs from the message queue and runs them.
     output_dir = '/tmp'
 
-    for i in range(argvals.num_instances):
-        daemon=Daemon(output_dir, i)
-        daemon.start()
+    daemon=Daemon(output_dir, argvals.num_instances)
+    daemon.run()
 
 
 
