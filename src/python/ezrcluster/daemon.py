@@ -12,11 +12,11 @@ class Daemon(Thread):
         Thread.__init__(self)
         self.job=None
         self.broken=False
+        self.instance_id=instance_id
         self.logger = logging.getLogger('daemon.%s' % self.instance_id)
         self.logger.setLevel(logging.DEBUG)
 
         self.logger.debug('Initializing daemon...')
-        self.instance_id=instance_id
         log_file = os.path.join(output_dir, 'ezrcluster-daemon.%s.log' % self.instance_id)
         lh = logging.FileHandler(log_file, mode='w')
         self.logger.addHandler(lh)
