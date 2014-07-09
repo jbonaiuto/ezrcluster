@@ -9,7 +9,6 @@ from ezrcluster.core import *
 
 class Daemon():
     def __init__(self, output_dir, num_jobs):
-        Thread.__init__(self)
         self.jobs=[]
         self.broken=False
         self.logger = logging.getLogger('daemon')
