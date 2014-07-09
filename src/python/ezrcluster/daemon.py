@@ -12,7 +12,7 @@ class Daemon(Thread):
         Thread.__init__(self)
         self.job=None
         self.broken=False
-        self.logger = logging.getLogger('daemon')
+        self.logger = logging.getLogger('daemon.%s' % self.instance_id)
         self.logger.setLevel(logging.DEBUG)
 
         self.logger.debug('Initializing daemon...')
