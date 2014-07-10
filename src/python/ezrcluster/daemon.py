@@ -96,6 +96,8 @@ class Daemon(Thread):
     def finalize_job(self):
         self.logger.debug('Process finished')
 
+        error=True
+
         if os.path.exists(self.job.output_file):
             #copy logfile to data
             (rootdir, log_filename) = os.path.split(self.job.log_file)
@@ -118,9 +120,8 @@ class Daemon(Thread):
             else:
                 self.logger.debug('Copied log file from %s to %s@%s:%s/%s' % (self.job.log_file, user, dataserver, port,
                                                                               dest_file))
-
-            # remove log file from local machine
-            os.remove(self.job.log_file)
+                # remove log file from local machine
+                os.remove(self.job.log_file)
 
             # copy output file to data
             if self.job.output_file:
@@ -141,17 +142,23 @@ class Daemon(Thread):
                 else:
                     self.logger.debug('Copied output file from %s to %s@%s:%s/%s' % (self.job.output_file, user,
                                                                                      dataserver, port, dest_file))
+                    # remove output file from local machine
+                    os.remove(self.job.output_file)
+                    error=False
 
-                # remove output file from local machine
-                os.remove(self.job.output_file)
             else:
                 self.logger.debug('** Job had no output file set: %s' % self.job.log_file)
 
-            self.channel.basic_ack(delivery_tag = self.job.method.delivery_tag)
         else:
             self.logger.debug('** Output file not found: %s' % self.job.output_file)
             self.broken=True
         self.job=None
+
+        # Only acknowledge if successful - otherwise re-requeue
+        if error:
+            self.channel.basic_nack(delivery_tag = self.job.method.delivery_tag)
+        else:
+            self.channel.basic_ack(delivery_tag = self.job.method.delivery_tag)
 
 if __name__=='__main__':
     ap = argparse.ArgumentParser(description='Run the daemon')
