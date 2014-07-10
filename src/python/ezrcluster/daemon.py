@@ -105,8 +105,9 @@ class Daemon(Thread):
             user=config.get('ssh','user')
             dest_file=os.path.join(dest_dir,log_filename)
 
-            remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.log_file)
-            cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
+            #remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.log_file)
+            #cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
+            cmds = ['scp -P %s %s %s@%s:%s' % (port,self.job.log_file,user,dataserver,dest_file)]
             ret_code=subprocess.call(cmds, shell=True)
             if ret_code != 0:
                 if ret_code < 0:
@@ -128,8 +129,9 @@ class Daemon(Thread):
                 dest_dir=config.get('ssh','output_dir')
                 dest_file=os.path.join(dest_dir,output_filename)
 
-                remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.output_file)
-                cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
+                #remote_cmd_str = '(echo cd %s; echo put %s; echo quit)' % (dest_dir, self.job.output_file)
+                #cmds = ['%s | sftp -P %s -b - %s@%s' % (remote_cmd_str, port, user, dataserver)]
+                cmds = ['scp -P %s %s %s@%s:%s' % (port,self.job.output_file,user,dataserver,dest_file)]
                 ret_code=subprocess.call(cmds, shell=True)
                 if ret_code != 0:
                     if ret_code < 0:
