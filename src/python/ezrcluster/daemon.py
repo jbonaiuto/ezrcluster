@@ -116,9 +116,8 @@ class Daemon(Thread):
                     self.logger.debug('Log transfer of %s failed with return code %d' % (self.job.log_file,
                                                                                          ret_code))
             else:
-                self.logger.debug('Copied log file from %s to sftp://%s@%s:%s/%s' % (self.job.log_file, user,
-                                                                                     dataserver, port,
-                                                                                     dest_file))
+                self.logger.debug('Copied log file from %s to %s@%s:%s/%s' % (self.job.log_file, user, dataserver, port,
+                                                                              dest_file))
 
             # remove log file from local machine
             os.remove(self.job.log_file)
@@ -140,9 +139,8 @@ class Daemon(Thread):
                         self.logger.debug('Output transfer of %s failed with return code %d' % (self.job.output_file,
                                                                                              ret_code))
                 else:
-                    self.logger.debug('Copied output file from %s to sftp://%s@%s:%s/%s' % (self.job.output_file,
-                                                                                            user, dataserver,
-                                                                                            port, dest_file))
+                    self.logger.debug('Copied output file from %s to %s@%s:%s/%s' % (self.job.output_file, user,
+                                                                                     dataserver, port, dest_file))
 
                 # remove output file from local machine
                 os.remove(self.job.output_file)
