@@ -152,13 +152,13 @@ class Daemon(Thread):
         else:
             self.logger.debug('** Output file not found: %s' % self.job.output_file)
             self.broken=True
-        self.job=None
 
         # Only acknowledge if successful - otherwise re-requeue
         if error:
             self.channel.basic_nack(delivery_tag = self.job.method.delivery_tag)
         else:
             self.channel.basic_ack(delivery_tag = self.job.method.delivery_tag)
+        self.job=None
 
 if __name__=='__main__':
     ap = argparse.ArgumentParser(description='Run the daemon')
