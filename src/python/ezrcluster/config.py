@@ -19,9 +19,3 @@ if not os.path.exists(CONF_FILE):
 
 config = ConfigParser()
 config.read(CONF_FILE)
-
-NODES={}
-node_list=config.get('nodes','names').split(',')
-for node in node_list:
-    node_args=node.split(':')
-    NODES[node_args[0]]=int(node_args[1])

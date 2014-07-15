@@ -2,13 +2,11 @@ import hashlib
 import simplejson as json
 import pika
 import time
-from ezrcluster.config import SH_DIR, NODES
+from ezrcluster.config import SH_DIR
 from ezrcluster.core import *
 
 class Launcher():
     def __init__(self, nodes=None):
-        if nodes is None:
-            nodes=NODES
         print('connecting to %s' % config.get('mq', 'host'))
         self.conn = pika.BlockingConnection(pika.ConnectionParameters(host=config.get('mq', 'host')))
         self.channel = self.conn.channel()
@@ -93,23 +91,23 @@ class Launcher():
             2) Wait for each instance to be in a running state with a working SSH connection
             3) Initialize each instance by copying over some files and running a script (see initialize_instance)
         """
+        if self.nodes is not None:
+            nodes_pending = copy(self.nodes)
+            print 'Starting %d nodes...' % len(self.nodes)
+            start_time = time.time()
+            timed_out = False
+            while len(nodes_pending) > 0 and not timed_out:
+                for host,num_instances in nodes_pending.iteritems():
+                    if self.is_ssh_running(host):
+                        self.initialize_node(host, num_instances=num_instances)
+                        del nodes_pending[host]
+                        break
+                time.sleep(5.0)
+                timed_out = (time.time() - start_time) > timeout_after
 
-        nodes_pending = copy(self.nodes)
-        print 'Starting %d nodes...' % len(self.nodes)
-        start_time = time.time()
-        timed_out = False
-        while len(nodes_pending) > 0 and not timed_out:
-            for host,num_instances in nodes_pending.iteritems():
-                if self.is_ssh_running(host):
-                    self.initialize_node(host, num_instances=num_instances)
-                    del nodes_pending[host]
-                    break
-            time.sleep(5.0)
-            timed_out = (time.time() - start_time) > timeout_after
-
-        if timed_out:
-            print 'Timed out! Only %d nodes were started...' %\
-                  (len(self.nodes) - len(nodes_pending))
+            if timed_out:
+                print 'Timed out! Only %d nodes were started...' %\
+                      (len(self.nodes) - len(nodes_pending))
 
     def fill_template_and_scp(self, host, params, template_file, dest_file):
         tpl = ScriptTemplate(template_file)
