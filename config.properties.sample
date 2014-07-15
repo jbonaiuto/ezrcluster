@@ -1,14 +1,11 @@
 [ssh]
 user=jbonaiuto
-host=tarsier.broadmonk.caltech.edu
-data_server=mri-nas1
-port=22
-log_dir=/D:/data/ezrcluster/logs
-output_dir=/D:/data/ezrcluster/output
+host=fortressofjollitude.zapto.org
+data_server=fortressofjollitude.zapto.org
+port=122
+log_dir=/data/ezrcluster/data/logs
+output_dir=/data/ezrcluster/data/output
 
 [mq]
-host=tarsier.broadmonk.caltech.edu
+host=fortressofjollitude.zapto.org
 job_queue=ezrcluster_jobs
-
-[nodes]
-names=tarsier:2,old47:1,mri-eyetracker:2,mri-controller:1,bigfoot:1,bushbaby:2,howler:1,orangutan:2,vervet:2
