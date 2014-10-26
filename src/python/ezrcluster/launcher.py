@@ -64,6 +64,7 @@ class Launcher():
         for k,j in enumerate(self.jobs):
             j.batch_id = batch_id
             self.post_job(j, id=self.generate_job_id())
+            self.conn.process_data_events()
 
     def post_job(self, j, id=None):
         """ Posts a single job to SQS queue """
